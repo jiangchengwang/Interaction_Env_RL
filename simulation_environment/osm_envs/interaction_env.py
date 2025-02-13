@@ -35,6 +35,7 @@ class InterActionEnv(AbstractEnv):
         # 设置默认的配置
         config = super().default_config()
         config.update({
+            "observation": {"type": "BEV"},
             "screen_width": 640,  # [px]
             "screen_height": 640,  # [px]
             'collision_check': False,
@@ -279,8 +280,8 @@ class InterActionV1Env(InterActionEnv):
                         continue
                     other_vehicle = self.vehicle_type(self.road, f"{veh_id}", other_trajectory[0][:2], other_trajectory[0][3], other_trajectory[0][2],
                                      ngsim_traj=other_trajectory, target_velocity=other_trajectory[1][2], start_step=self.steps,
-                                     v_length=self.trajectory_set['ego']['length'],
-                                     v_width=self.trajectory_set['ego']['width'])
+                                     v_length=self.trajectory_set[veh_id]['length'],
+                                     v_width=self.trajectory_set[veh_id]['width'])
 
                     vehicles.append(other_vehicle)  # 将其他车辆添加到列表中
 
@@ -298,4 +299,4 @@ class InterActionV1Env(InterActionEnv):
 
         :return:is the state terminal
         """
-        return self.steps >= self.duration or np.linalg.norm(self.vehicle.position - self.vehicle.planned_trajectory[-1]) < 3.0
+        return self.steps >= self.duration

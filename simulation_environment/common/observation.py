@@ -10,10 +10,17 @@ import numpy as np
 import pandas as pd
 
 from gymnasium import spaces
+import matplotlib
+from matplotlib import pyplot as plt
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
 
 from simulation_environment import utils
 from simulation_environment.road.lane import AbstractLane
 from simulation_environment.vehicle.kinematics import Vehicle
+from utils.state2bev import polygon_xy_from_state, draw_vehicle, draw_pedestrian, vehicle_coordinate_sys
+
+matplotlib.use('agg')
 
 try:
     import torch
@@ -599,6 +606,179 @@ class QCNetInteractionDataset(ObservationType):
         return map_data
 
 
+class BEVObservation(ObservationType):
+    FEATURES: list[str] = ["presence", "x", "y", "vx", "vy", "heading"]
+
+    def __init__(
+            self,
+            env: AbstractEnv,
+            features: list[str] = None,
+            vehicles_count: int = 5,
+            features_range: dict[str, list[float]] = None,
+            absolute: bool = False,
+            order: str = "sorted",
+            normalize: bool = True,
+            clip: bool = True,
+            see_behind: bool = False,
+            observe_intentions: bool = False,
+            include_obstacles: bool = True,
+            **kwargs: dict,
+    ) -> None:
+        """
+        :param env: The environment to observe
+        :param features: Names of features used in the observation
+        :param vehicles_count: Number of observed vehicles
+        :param features_range: a dict mapping a feature name to [min, max] values
+        :param absolute: Use absolute coordinates
+        :param order: Order of observed vehicles. Values: sorted, shuffled
+        :param normalize: Should the observation be normalized
+        :param clip: Should the value be clipped in the desired range
+        :param see_behind: Should the observation contains the vehicles behind
+        :param observe_intentions: Observe the destinations of other vehicles
+        """
+        super().__init__(env)
+        self.features = features or self.FEATURES
+        self.vehicles_count = vehicles_count
+        self.features_range = features_range
+        self.absolute = absolute
+        self.order = order
+        self.normalize = normalize
+        self.clip = clip
+        self.see_behind = see_behind
+        self.observe_intentions = observe_intentions
+        self.include_obstacles = include_obstacles
+
+    def space(self) -> spaces.Space:
+        return spaces.Box(
+            shape=(480, 480, 3),
+            low=0,
+            high=255,
+            dtype=np.uint8,
+        )
+
+    def observe(self) -> np.ndarray:
+        if not self.env.road:
+            return np.zeros(self.space().shape)
+
+        def batch_coordinates_conversion(base_position, base_heading, coordinates):
+            base_position = np.array(base_position).reshape(-1, 2)
+            delta_p = coordinates - base_position
+
+            # 转换坐标系：旋转-A的朝向角
+            rot_matrix = np.array([
+                [np.cos(-base_heading), -np.sin(-base_heading)],
+                [np.sin(-base_heading), np.cos(-base_heading)]
+            ])
+            rel_position = rot_matrix @ delta_p.T
+
+            return rel_position.T
+
+        fig, ax = plt.subplots(figsize=(4.8, 2.4))
+        ax.set_aspect('equal')
+        ax.set_xlim(-20, 80)
+        ax.set_ylim(-25, 25)
+        # ax.set_facecolor('gray')
+        ego_position = self.env.vehicle.position
+        ego_heading = self.env.vehicle.heading
+        ego_speed = self.env.vehicle.speed
+
+        ego_destination = self.env.vehicle.planned_trajectory[-1].copy()
+        rel_destination = batch_coordinates_conversion(ego_position, ego_heading, ego_destination.reshape(-1, 2))
+        type_dict = dict(color="red", linewidth=3, zorder=10)
+        rel_destination = np.stack([np.zeros((1, 2)), rel_destination], axis=1).squeeze(axis=0)
+        plt.plot(rel_destination[:, 0], rel_destination[:, 1], **type_dict)
+
+        # draw traffic participant
+        for veh in self.env.road.vehicles:
+            veh_position = veh.position
+            veh_heading = veh.heading
+            veh_speed = veh.speed
+            rel_position, rel_velocity, rel_yaw = vehicle_coordinate_sys(ego_position, ego_speed, ego_heading, veh_position, veh_speed, veh_heading)
+            color = 'blue' if veh.name != 'ego' else 'green'
+            draw_vehicle(ax, rel_position[0], rel_position[1], rel_yaw, veh.LENGTH, veh.WIDTH, color=color)
+
+        # draw map
+        for ls in self.env.laneletmap.lineStringLayer:
+
+            if "type" not in ls.attributes.keys():
+                raise RuntimeError("ID " + str(ls.id) + ": Linestring type must be specified")
+            elif ls.attributes["type"] == "curbstone":
+                type_dict = dict(color="black", linewidth=1, zorder=10)
+            elif ls.attributes["type"] == "line_thin":
+                if "subtype" in ls.attributes.keys() and ls.attributes["subtype"] == "dashed":
+                    type_dict = dict(color="white", linewidth=1, zorder=10, dashes=[10, 10])
+                else:
+                    type_dict = dict(color="white", linewidth=1, zorder=10)
+            elif ls.attributes["type"] == "line_thick":
+                if "subtype" in ls.attributes.keys() and ls.attributes["subtype"] == "dashed":
+                    type_dict = dict(color="white", linewidth=2, zorder=10, dashes=[10, 10])
+                else:
+                    type_dict = dict(color="white", linewidth=2, zorder=10)
+            elif ls.attributes["type"] == "pedestrian_marking":
+                type_dict = dict(color="white", linewidth=1, zorder=10, dashes=[5, 10])
+            elif ls.attributes["type"] == "bike_marking":
+                type_dict = dict(color="white", linewidth=1, zorder=10, dashes=[5, 10])
+            elif ls.attributes["type"] == "stop_line":
+                type_dict = dict(color="white", linewidth=3, zorder=10)
+            elif ls.attributes["type"] == "virtual":
+                type_dict = dict(color="blue", linewidth=1, zorder=10, dashes=[2, 5])
+            elif ls.attributes["type"] == "road_border":
+                type_dict = dict(color="black", linewidth=1, zorder=10)
+            elif ls.attributes["type"] == "guard_rail":
+                type_dict = dict(color="black", linewidth=1, zorder=10)
+            elif ls.attributes["type"] == "traffic_sign":
+                continue
+            elif ls.attributes["type"] == "building":
+                type_dict = dict(color="pink", zorder=1, linewidth=5)
+            elif ls.attributes["type"] == "spawnline":
+                if ls.attributes["spawn_type"] == "start":
+                    type_dict = dict(color="green", zorder=11, linewidth=2)
+                elif ls.attributes["spawn_type"] == "end":
+                    type_dict = dict(color="red", zorder=11, linewidth=2)
+
+            ls_points = [(pt.y, pt.x) for pt in ls]
+            ls_points = np.array(ls_points)
+            ls_points = batch_coordinates_conversion(ego_position, ego_heading, ls_points)
+            plt.plot(ls_points[:, 0], ls_points[:, 1], **type_dict)
+
+        lanelets = []
+        for ll in self.env.laneletmap.laneletLayer:
+            points = [[pt.y, pt.x] for pt in ll.polygon2d()]
+            points = np.array(points)
+            points = batch_coordinates_conversion(ego_position, ego_heading, points)
+            polygon = Polygon(points.tolist(), True)
+            lanelets.append(polygon)
+
+        ll_patches = PatchCollection(lanelets, facecolors="lightgray", edgecolors="None", zorder=5)
+        ax.add_collection(ll_patches)
+
+        if len(self.env.laneletmap.laneletLayer) == 0:
+            ax.patch.set_facecolor('lightgrey')
+
+        areas = []
+        for area in self.env.laneletmap.areaLayer:
+            if area.attributes["subtype"] == "keepout":
+                points = [[pt.y, pt.x] for pt in area.outerBoundPolygon()]
+                points = np.array(points)
+                points = batch_coordinates_conversion(ego_position, ego_heading, points)
+                polygon = Polygon(points.tolist(), True)
+                areas.append(polygon)
+
+        area_patches = PatchCollection(areas, facecolors="darkgray", edgecolors="None", zorder=5)
+        ax.add_collection(area_patches)
+
+        # 关闭坐标轴和边框
+        ax.axis('off')
+        # 获取当前图像数据
+        fig.canvas.draw()
+        # 从图形对象中提取图像数据
+        rgba_buf = fig.canvas.buffer_rgba()
+        (w, h) = fig.canvas.get_width_height()
+        rgba_arr = np.frombuffer(rgba_buf, dtype=np.uint8).reshape((h, w, 4))
+        rgba_arr = rgba_arr[:, :, :-1]
+        return rgba_arr
+
+
 def observation_factory(env: AbstractEnv, config: dict) -> ObservationType:
     if config["type"] == "Kinematics":
         return KinematicObservation(env, **config)
@@ -606,5 +786,7 @@ def observation_factory(env: AbstractEnv, config: dict) -> ObservationType:
         return EmptyObservation(env, **config)
     elif config["type"] == "QCNet":
         return QCNetInteractionDataset(env, **config)
+    elif config["type"] == "BEV":
+        return BEVObservation(env, **config)
     else:
         raise ValueError("Unknown observation type")
