@@ -650,7 +650,7 @@ class BEVObservation(ObservationType):
 
     def space(self) -> spaces.Space:
         return spaces.Box(
-            shape=(480, 480, 3),
+            shape=(240, 480, 3),
             low=0,
             high=255,
             dtype=np.uint8,
@@ -776,6 +776,8 @@ class BEVObservation(ObservationType):
         (w, h) = fig.canvas.get_width_height()
         rgba_arr = np.frombuffer(rgba_buf, dtype=np.uint8).reshape((h, w, 4))
         rgba_arr = rgba_arr[:, :, :-1]
+        # 关闭图形对象
+        plt.close(fig)
         return rgba_arr
 
 

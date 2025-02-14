@@ -2,11 +2,12 @@ import json
 import os
 from typing import Optional
 from simulation_environment.common.action import Action
-from simulation_environment.osm_envs.osm_env import AbstractEnv
+from simulation_environment.osm_envs.osm_env import AbstractEnv, Observation
 from simulation_environment.road.road import Road, RoadNetwork
 from simulation_environment.vehicle.humandriving import HumanLikeVehicle
 from simulation_environment.road.lane import LineType, StraightLane, PolyLane, PolyLaneFixedWidth
 import numpy as np
+from utils.state2bev import vehicle_coordinate_sys
 
 
 class InterActionEnv(AbstractEnv):
@@ -238,6 +239,31 @@ class InterActionV1Env(InterActionEnv):
         self.vehicle_type = HumanLikeVehicle
         super(InterActionEnv, self).__init__(osm_path=osm_path, config=config, render_mode=render_mode)
 
+    def _info(self, obs: Observation, action: Optional[Action] = None) -> dict:
+        """
+        收集环境信息
+        :param obs: 观测
+        :param action: 动作
+        :return: 环境信息
+        """
+        info = super(InterActionEnv, self)._info(obs, action)
+        destination_position = self.vehicle.planned_trajectory[self.steps+1]
+        destination_speed = self.vehicle.planned_speed[self.steps+1]
+        destination_heading = self.vehicle.planned_heading[self.steps+1]
+
+        rel_position, rel_velocity, rel_yaw = vehicle_coordinate_sys(self.vehicle.position, self.vehicle.speed,
+                                                             self.vehicle.heading,
+                                                             destination_position, destination_speed,
+                                                             destination_heading)
+
+        info['action'] = {
+            'rel_position': rel_position.tolist(),
+            'rel_velocity': rel_velocity.tolist(),
+            'rel_yaw': float(rel_yaw),
+        }
+
+        return info
+
     def _create_vehicles(self, reset_time=0):
         """
         创建自车和NGSIM车辆，并将它们添加到道路上。
@@ -299,4 +325,4 @@ class InterActionV1Env(InterActionEnv):
 
         :return:is the state terminal
         """
-        return self.steps >= self.duration
+        return self.steps >= self.duration - 1

@@ -1,6 +1,9 @@
 import os
 import re
 import sys
+project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+sys.path.append(project_dir)
+
 import json
 import time
 import logger
@@ -9,10 +12,6 @@ from multiprocessing import cpu_count, Pool
 
 from data_process.data_process import InterActionDP, convert_keys
 from data_process.parse_dataset_path import get_all_foler_path
-
-project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-sys.path.append(project_dir)
-
 
 log = logger.setup_app_level_logger()
 
