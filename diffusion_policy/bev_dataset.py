@@ -46,6 +46,9 @@ class BEVDataset(torch.utils.data.Dataset):
         data = ndata * (self.max - self.min) + self.min
         return data
 
+    def normalize_obs(self, obs):
+        return np.moveaxis(obs.astype(np.float32) / 255, -1, 0)
+
     def __len__(self):
         return len(self.index)
 
