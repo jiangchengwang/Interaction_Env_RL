@@ -164,16 +164,16 @@ def save_exp_data(
 
 if __name__ == '__main__':
 
-    arg = ArgumentParser()
-    arg.add_argument('--dataset-path', type=str, default='../data/dataset', help="dataset path")
-    arg.add_argument('--save-path', type=str, default='../data/model', help="dataset path")
-    arg.add_argument('--epochs', type=int, default=50, help="train epochs")
-    arg.add_argument('--batch-size', type=int, default=64, help="train batch size")
-    arg.add_argument('--lr', type=float, default=1e-4, help="train learning rate")
-    arg.add_argument('--weight-decay', type=float, default=1e-6, help="train weight decay")
-    arg.add_argument('--num-workers', type=int, default=4, help="train num workers")
-    arg.add_argument('--eval-interval', type=int, default=1, help="eval interval")
-    args = arg.parse_args()
+    parser = ArgumentParser()
+    parser.add_argument('--dataset-path', type=str, default='../data/dataset', help="train dataset path")
+    parser.add_argument('--save-path', type=str, default='../data/model', help="dataset path")
+    parser.add_argument('--epochs', type=int, default=50, help="train epochs")
+    parser.add_argument('--batch-size', type=int, default=64, help="train batch size")
+    parser.add_argument('--lr', type=float, default=1e-4, help="train learning rate")
+    parser.add_argument('--weight-decay', type=float, default=1e-6, help="train weight decay")
+    parser.add_argument('--num-workers', type=int, default=4, help="train num workers")
+    parser.add_argument('--eval-interval', type=int, default=1, help="eval interval")
+    args = parser.parse_args()
     log.info("Input args:")
     for k, v in vars(args).items():
         log.info(f"{k}: {v})")

@@ -80,6 +80,13 @@ class HumanLikeVehicle(IDMVehicle):
         return steering_angle, acceleration
 
     def step(self, dt):
+
+        super(HumanLikeVehicle, self).step(dt)
+        if self.sim_steps < len(self.planned_trajectory):
+            self.heading = self.planned_heading[self.sim_steps].squeeze()
+            self.speed = self.planned_speed[self.sim_steps].squeeze()
+            self.position = self.planned_trajectory[self.sim_steps]
+
         self.sim_steps += 1
         self.heading_history.append(self.heading)
         self.velocity_history.append(self.speed)
@@ -87,4 +94,3 @@ class HumanLikeVehicle(IDMVehicle):
         self.action_history.append(self.action)
         self.traj = np.append(self.traj, self.position, axis=0)
 
-        super(HumanLikeVehicle, self).step(dt)

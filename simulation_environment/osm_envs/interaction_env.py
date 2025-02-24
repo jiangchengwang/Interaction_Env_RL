@@ -7,10 +7,10 @@ from simulation_environment.road.road import Road, RoadNetwork
 from simulation_environment.vehicle.humandriving import HumanLikeVehicle
 from simulation_environment.road.lane import LineType, StraightLane, PolyLane, PolyLaneFixedWidth
 import numpy as np
-from utils.state2bev import vehicle_coordinate_sys
+from utils.state2bev import vehicle_coordinate_sys, absolute_coordinate_sys
 
 
-class InterActionEnv(AbstractEnv):
+class InteractionEnv(AbstractEnv):
     """
     一个带有交互数据的十字路口驾驶环境，用于收集gail训练数据。
     """
@@ -29,7 +29,7 @@ class InterActionEnv(AbstractEnv):
         # 获取周围车辆的ID
         self.surrounding_vehicles = None
         self.vehicle_type = HumanLikeVehicle
-        super(InterActionEnv, self).__init__(osm_path=osm_path, config=config, render_mode=render_mode)
+        super(InteractionEnv, self).__init__(osm_path=osm_path, config=config, render_mode=render_mode)
 
     @classmethod
     def default_config(self):
@@ -160,8 +160,6 @@ class InterActionEnv(AbstractEnv):
                                      v_length=self.trajectory_set[veh_id]['length'],
                                      v_width=self.trajectory_set[veh_id]['width'])
 
-                    # other_target = self.road.network.get_closest_lane_index(position=other_vehicle.planned_trajectory[-1])  # 获取其他车辆的目标车道
-                    # other_vehicle.plan_route_to(other_target[1])  # 规划其他车辆行驶路线
                     vehicles.append(other_vehicle)  # 将其他车辆添加到列表中
 
             except Exception as e:  # 捕获异常
@@ -219,7 +217,7 @@ class InterActionEnv(AbstractEnv):
         self.road.vehicles = vehicles  # 清除需要离开的车辆
 
 
-class InterActionV1Env(InterActionEnv):
+class InteractionV1Env(InteractionEnv):
 
     def __init__(self, data_path=None, osm_path=None, config: dict = None, render_mode: Optional[str] = None,
                  bv_ids=None):
@@ -237,7 +235,7 @@ class InterActionV1Env(InterActionEnv):
         self.surrounding_vehicles.pop(0)
         self.bv_ids = bv_ids
         self.vehicle_type = HumanLikeVehicle
-        super(InterActionEnv, self).__init__(osm_path=osm_path, config=config, render_mode=render_mode)
+        super(InteractionEnv, self).__init__(osm_path=osm_path, config=config, render_mode=render_mode)
 
     def _info(self, obs: Observation, action: Optional[Action] = None) -> dict:
         """
@@ -246,7 +244,7 @@ class InterActionV1Env(InterActionEnv):
         :param action: 动作
         :return: 环境信息
         """
-        info = super(InterActionEnv, self)._info(obs, action)
+        info = super(InteractionEnv, self)._info(obs, action)
         destination_position = self.vehicle.planned_trajectory[self.steps+1]
         destination_speed = self.vehicle.planned_speed[self.steps+1]
         destination_heading = self.vehicle.planned_heading[self.steps+1]
@@ -256,6 +254,14 @@ class InterActionV1Env(InterActionEnv):
                                                              destination_position, destination_speed,
                                                              destination_heading)
 
+        abs_position, abs_velocity, abs_yaw = absolute_coordinate_sys(self.vehicle.position, self.vehicle.speed,
+                                                                      self.vehicle.heading,
+                                                                      rel_position, rel_velocity,
+                                                                      rel_yaw)
+        print('steps: ', self.steps)
+        print('distance: ', np.linalg.norm(abs_position - destination_position))
+        print('speed: ', np.linalg.norm(np.linalg.norm(abs_velocity) - destination_speed))
+        print('yaw: ', abs_yaw - destination_heading)
         info['action'] = {
             'rel_position': rel_position.tolist(),
             'rel_velocity': rel_velocity.tolist(),
@@ -279,46 +285,6 @@ class InterActionV1Env(InterActionEnv):
 
         self._create_bv_vehicles(self.steps)  # 创建虚拟车辆
 
-    def _create_bv_vehicles(self, current_time):
-
-        reset_time = 0
-        T = 200
-
-        vehicles = []  # 初始化其他车辆列表
-        for veh_id in self.surrounding_vehicles:  # 遍历周围车辆
-            try:
-                other_trajectory = np.array(self.trajectory_set[veh_id]['trajectory'][reset_time:])  # 获取其他车辆轨迹
-                flag = ~(np.array(other_trajectory[current_time])).reshape(1, -1).any(axis=1)[0]  # 判断是否存在轨迹点
-                if current_time == 0:  # 如果当前时间为0
-                    pass
-                else:
-                    trajectory = np.array(self.trajectory_set[veh_id]['trajectory'][reset_time:])  # 获取当前时间轨迹点
-                    if not flag and ~(np.array(trajectory[current_time-1])).reshape(1, -1).any(axis=1)[0]:  # 如果当前时间和上一时间存在轨迹点
-                        flag = False
-                    else:
-                        flag = True
-
-                if not flag:  # 如果不存在轨迹点
-
-                    mask = np.where(np.sum(other_trajectory[:(T * 10), :2], axis=1) == 0, False, True)  # 过滤无效轨迹点
-                    other_trajectory = self.process_raw_trajectory(other_trajectory[mask])
-                    if other_trajectory.shape[0] <= 5:  # 如果计划轨迹点不足5个，则跳过
-                        continue
-                    other_vehicle = self.vehicle_type(self.road, f"{veh_id}", other_trajectory[0][:2], other_trajectory[0][3], other_trajectory[0][2],
-                                     ngsim_traj=other_trajectory, target_velocity=other_trajectory[1][2], start_step=self.steps,
-                                     v_length=self.trajectory_set[veh_id]['length'],
-                                     v_width=self.trajectory_set[veh_id]['width'])
-
-                    vehicles.append(other_vehicle)  # 将其他车辆添加到列表中
-
-            except Exception as e:  # 捕获异常
-                raise ValueError(f'Error in creating other vehicles, error {e}')
-        else:
-            if len(vehicles) > 0:
-                for vh in self.road.vehicles:
-                    vehicles.append(vh)  # 将其他车辆添加到列表中
-                self.road.vehicles = vehicles  # 将道路上的车辆替换为新的车辆列表
-
     def _is_terminated(self) -> bool:
         """
         Check whether the current state is a terminal state
@@ -326,3 +292,30 @@ class InterActionV1Env(InterActionEnv):
         :return:is the state terminal
         """
         return self.steps >= self.duration - 1
+
+
+class InteractionEvalEnv(InteractionV1Env):
+
+    def _simulate(self, action: Optional[Action] = None) -> None:
+        """Perform several steps of simulation with constant action."""
+        abs_position, abs_velocity, abs_yaw = absolute_coordinate_sys(self.vehicle.position, self.vehicle.speed,
+                                                                      self.vehicle.heading,
+                                                                      action['rel_position'].squeeze(axis=0),
+                                                                      action['rel_velocity'].squeeze(axis=0),
+                                                                      action['rel_yaw'])
+
+        # self.vehicle.planned_heading[self.vehicle.sim_steps] = abs_yaw
+        # self.vehicle.planned_speed[self.vehicle.sim_steps] = np.linalg.norm(abs_velocity)
+        # self.vehicle.planned_trajectory[self.vehicle.sim_steps] = abs_position
+        print('prediction: ')
+        print('distance: ', np.linalg.norm(abs_position - self.vehicle.planned_trajectory[self.vehicle.sim_steps]))
+        print('speed: ', np.linalg.norm(np.linalg.norm(abs_velocity) - self.vehicle.planned_speed[self.vehicle.sim_steps]))
+        print('yaw: ', abs_yaw - self.vehicle.planned_heading[self.vehicle.sim_steps])
+        print('------------------')
+
+        self.road.act()
+        self.road.step(1 / self.config["simulation_frequency"])
+        self.steps += 1
+        self._clear_vehicles()  # 清除车辆
+        self.enable_auto_render = False  # 关闭自动渲染
+        self._create_bv_vehicles(self.steps)  # 创建虚拟车辆

@@ -35,6 +35,44 @@ def vehicle_coordinate_sys(base_position, base_speed, base_heading, position, sp
     return rel_position, rel_velocity, rel_yaw
 
 
+def absolute_coordinate_sys(
+        base_position: np.ndarray,
+        base_speed: float,
+        base_heading: float,
+        rel_position: np.ndarray,
+        rel_velocity: np.ndarray = None,
+        rel_yaw: float = None
+):
+
+    rot_matrix = np.array([
+        [np.cos(base_heading), -np.sin(base_heading)],
+        [np.sin(base_heading), np.cos(base_heading)]
+    ])
+    delta_global = rot_matrix @ rel_position
+    abs_position = base_position + delta_global
+
+    # 2. 计算绝对速度
+    abs_velocity = None
+    if rel_velocity is not None:
+        # 基础车辆的速度向量
+        base_vel = np.array([
+            np.cos(base_heading) * base_speed,
+            np.sin(base_heading) * base_speed
+        ])
+        # 相对速度转换为绝对速度
+        abs_rel_vel = rot_matrix @ rel_velocity
+        abs_velocity = abs_rel_vel + base_vel
+
+    # 3. 计算绝对航向角
+    abs_yaw = None
+    if rel_yaw is not None:
+        abs_yaw = base_heading + rel_yaw
+        # 调整到 [-π, π]
+        abs_yaw = (abs_yaw + np.pi) % (2 * np.pi) - np.pi
+
+    return abs_position, abs_velocity, abs_yaw
+
+
 def rotate_around_center(pts, center, yaw):
     return np.dot(pts - center, np.array([[np.cos(yaw), np.sin(yaw)], [-np.sin(yaw), np.cos(yaw)]])) + center
 

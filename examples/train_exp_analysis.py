@@ -48,8 +48,8 @@ def plot_training_data(data_path, smooth=False, span=5, color=None):
 
 
 if __name__ == '__main__':
-    arg = ArgumentParser()
-    arg.add_argument('--data-path', type=str, default='data/model', help="Experiment data path")
-    args = arg.parse_args()
+    parser = ArgumentParser()
+    parser.add_argument('--data-path', type=str, default='data/model', help="Experiment data path")
+    args = parser.parse_args()
 
     plot_training_data(args.data_path, color=[("#006400", "#8FBC8F"), ("#FF4500", "#FFA07A")])

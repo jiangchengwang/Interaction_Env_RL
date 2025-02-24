@@ -15,7 +15,7 @@ from simulation_environment.vehicle.kinematics import Vehicle
 if TYPE_CHECKING:
     from simulation_environment.common.abstract import AbstractEnv
 
-Action = Union[int, np.ndarray]
+Action = Union[int, np.ndarray, dict]
 
 
 class ActionType:
