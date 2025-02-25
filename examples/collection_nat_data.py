@@ -40,10 +40,13 @@ def mutilTDP(osm_path, data_path, location_name, tag='observation'):
     obs, info = env.reset()
     done = False
     while not done:
+
+        next_obs, reward, terminated, truncated, next_info = env.step(None)
+        done = terminated or truncated
         nat_dataset["obs"].append(obs)
         nat_dataset["action"].append(info["action"])
-        obs, reward, terminated, truncated, info = env.step(None)
-        done = terminated or truncated
+        obs = next_obs
+        info = next_info
     env.close()
     with open(os.path.join(project_dir, 'data', tag, location_name, f'{file_name}.pkl'), 'wb') as f:
         pickle.dump(nat_dataset, f)

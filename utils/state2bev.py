@@ -7,6 +7,18 @@ def vehicle_coordinate_sys(base_position, base_speed, base_heading, position, sp
     def direction(heading) -> np.ndarray:
         return np.array([np.cos(heading), np.sin(heading)])
 
+    if len(speed.shape)>0:
+        speed = speed.squeeze(axis=0)
+
+    if len(heading.shape)>0:
+        heading = heading.squeeze(axis=0)
+
+    if len(base_speed.shape)>0:
+        base_speed = base_speed.squeeze(axis=0)
+
+    if len(base_heading.shape)>0:
+        base_heading = base_heading.squeeze(axis=0)
+
     delta_x = position[0] - base_position[0]
     delta_y = position[1] - base_position[1]
 
@@ -44,31 +56,39 @@ def absolute_coordinate_sys(
         rel_yaw: float = None
 ):
 
+    if len(base_speed.shape)>0:
+        base_speed = base_speed.squeeze(axis=0)
+
+    if len(base_heading.shape)>0:
+        base_heading = base_heading.squeeze(axis=0)
+
+    if len(rel_yaw.shape)>0:
+        rel_yaw = rel_yaw.squeeze(axis=0)
+
+    def direction(heading) -> np.ndarray:
+        return np.array([np.cos(heading), np.sin(heading)])
+
+    # 转换坐标系：旋转-A的朝向角
     rot_matrix = np.array([
-        [np.cos(base_heading), -np.sin(base_heading)],
-        [np.sin(base_heading), np.cos(base_heading)]
+        [np.cos(-base_heading), -np.sin(-base_heading)],
+        [np.sin(-base_heading), np.cos(-base_heading)]
     ])
-    delta_global = rot_matrix @ rel_position
-    abs_position = base_position + delta_global
+
+    abs_position = np.linalg.inv(rot_matrix) @ rel_position + base_position
 
     # 2. 计算绝对速度
     abs_velocity = None
     if rel_velocity is not None:
         # 基础车辆的速度向量
-        base_vel = np.array([
-            np.cos(base_heading) * base_speed,
-            np.sin(base_heading) * base_speed
-        ])
+        base_vel = direction(base_heading) * base_speed
         # 相对速度转换为绝对速度
-        abs_rel_vel = rot_matrix @ rel_velocity
-        abs_velocity = abs_rel_vel + base_vel
+        abs_velocity = np.linalg.inv(rot_matrix) @ rel_velocity
+        abs_velocity = abs_velocity + base_vel
 
     # 3. 计算绝对航向角
     abs_yaw = None
     if rel_yaw is not None:
-        abs_yaw = base_heading + rel_yaw
-        # 调整到 [-π, π]
-        abs_yaw = (abs_yaw + np.pi) % (2 * np.pi) - np.pi
+        abs_yaw = (rel_yaw + base_heading + np.pi) % (2 * np.pi) - np.pi
 
     return abs_position, abs_velocity, abs_yaw
 
