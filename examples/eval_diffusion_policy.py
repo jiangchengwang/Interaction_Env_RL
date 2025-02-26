@@ -17,6 +17,8 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
 
+import cv2
+
 english_font = font_manager.FontProperties(fname=english_font_path, size=16)
 chinese_font = font_manager.FontProperties(fname=chinese_font_path, size=16)
 
@@ -87,8 +89,8 @@ if __name__ == '__main__':
         obs, info = env.reset()
         done = False
         while not done:
-            obs = eval_dataset.normalize_obs(obs)
-            nimages = torch.from_numpy(obs).to(device, dtype=torch.float32).unsqueeze(0)
+            nimages = eval_dataset.normalize_obs(obs)
+            nimages = torch.from_numpy(nimages).to(device, dtype=torch.float32).unsqueeze(0)
             # infer action
             with torch.no_grad():
                 # get image features
@@ -117,16 +119,17 @@ if __name__ == '__main__':
                         timestep=k,
                         sample=naction
                     ).prev_sample
-            naction = naction.detach().to('cpu').numpy()
+            naction = naction.detach().to('cpu').numpy().squeeze(0)
             naction = eval_dataset.unnormalize_data(naction)
 
             action = {
-                'rel_position': naction[:, :2],
-                'rel_velocity': naction[:, 2:-1],
-                'rel_yaw': naction[:, -1],
+                'rel_position': naction[:2],
+                'rel_velocity': naction[ 2:-1],
+                'rel_yaw': naction[-1],
             }
             env.render()
+            cv2.imshow('image', obs)
+            cv2.waitKey(1)
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
         env.close()
-        break

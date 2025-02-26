@@ -9,6 +9,9 @@ from simulation_environment.road.lane import LineType, StraightLane, PolyLane, P
 import numpy as np
 from utils.state2bev import vehicle_coordinate_sys, absolute_coordinate_sys
 
+import logger
+log = logger.get_logger(__name__)
+
 
 class InteractionEnv(AbstractEnv):
     """
@@ -258,15 +261,19 @@ class InteractionV1Env(InteractionEnv):
                                                                       self.vehicle.heading,
                                                                       rel_position, rel_velocity,
                                                                       rel_yaw)
-        print('steps: ', self.steps)
-        print('distance: ', np.linalg.norm(abs_position - destination_position))
-        print('speed: ', np.linalg.norm(np.linalg.norm(abs_velocity) - destination_speed))
-        print('yaw: ', abs_yaw - destination_heading)
+        log.info(f'steps: {self.steps}' )
+        log.info(f'distance: {np.linalg.norm(abs_position - destination_position)}' )
+        log.info(f'speed: {np.linalg.norm(np.linalg.norm(abs_velocity) - destination_speed)}')
+        log.info(f'yaw: {abs_yaw - destination_heading}', )
+
         info['action'] = {
             'rel_position': rel_position.tolist(),
             'rel_velocity': rel_velocity.tolist(),
             'rel_yaw': float(rel_yaw),
+            'action': self.vehicle.action,
         }
+        log.info(f"action: {info['action']}")
+        log.info('------------------')
 
         return info
 
@@ -300,13 +307,13 @@ class InteractionEvalEnv(InteractionV1Env):
         """Perform several steps of simulation with constant action."""
         abs_position, abs_velocity, abs_yaw = absolute_coordinate_sys(self.vehicle.position, self.vehicle.speed,
                                                                       self.vehicle.heading,
-                                                                      action['rel_position'].squeeze(axis=0),
-                                                                      action['rel_velocity'].squeeze(axis=0),
+                                                                      action['rel_position'],
+                                                                      action['rel_velocity'],
                                                                       action['rel_yaw'])
 
-        # self.vehicle.planned_heading[self.vehicle.sim_steps] = abs_yaw
-        # self.vehicle.planned_speed[self.vehicle.sim_steps] = np.linalg.norm(abs_velocity)
-        # self.vehicle.planned_trajectory[self.vehicle.sim_steps] = abs_position
+        self.vehicle.planned_heading[self.vehicle.sim_steps] = abs_yaw
+        self.vehicle.planned_speed[self.vehicle.sim_steps] = np.linalg.norm(abs_velocity)
+        self.vehicle.planned_trajectory[self.vehicle.sim_steps] = abs_position
         print('prediction: ')
         print('distance: ', np.linalg.norm(abs_position - self.vehicle.planned_trajectory[self.vehicle.sim_steps]))
         print('speed: ', np.linalg.norm(np.linalg.norm(abs_velocity) - self.vehicle.planned_speed[self.vehicle.sim_steps]))
