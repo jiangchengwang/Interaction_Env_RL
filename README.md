@@ -3,9 +3,11 @@
 The purpose of this project is to use imitation learning, reinforcement learning and other methods to model the driving strategies contained in [the Interaction datasets](https://interaction-dataset.com/) .
 
 ## TODO List
--[x] 数据预处理
--[x] 仿真环境搭建
--[ ] 驾驶策略建模
+- [x] 数据预处理 
+- [x] 仿真环境搭建 
+- [x] 扩散策略
+- [ ] GAIL
+- [ ] GNN-GAIL
 
 ## 环境(Environment)
 - 汇入场景
@@ -70,4 +72,6 @@ python env_test.py --dataset-path your/dataset/path　--save-video
 > - [NGSIM_env](https://github.com/MCZhi/Driving-IRL-NGSIM)
 > - [LimSim](https://github.com/PJLab-ADG/LimSim)
 > - [Interaction-dataset](https://github.com/interaction-dataset/interaction-dataset)
+> - [Diffusion Policy](https://github.com/real-stanford/diffusion_policy)
+> - [GAIL](https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail)
 
