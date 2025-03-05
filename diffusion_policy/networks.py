@@ -9,6 +9,7 @@ from torch import nn
 import torchvision
 import torch.nn.functional as F
 
+
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -40,6 +41,7 @@ class Upsample1d(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
 
 class Conv1dBlock(nn.Module):
     '''

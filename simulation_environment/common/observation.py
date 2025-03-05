@@ -650,7 +650,7 @@ class BEVObservation(ObservationType):
 
     def space(self) -> spaces.Space:
         return spaces.Box(
-            shape=(240, 480, 3),
+            shape=(80, 320, 3),
             low=0,
             high=255,
             dtype=np.uint8,
@@ -673,10 +673,10 @@ class BEVObservation(ObservationType):
 
             return rel_position.T
 
-        fig, ax = plt.subplots(figsize=(4.8, 2.4))
+        fig, ax = plt.subplots(figsize=(3.2, 0.8))
         ax.set_aspect('equal')
-        ax.set_xlim(-20, 80)
-        ax.set_ylim(-25, 25)
+        ax.set_xlim(-20, 60)
+        ax.set_ylim(-10, 10)
         # ax.set_facecolor('gray')
         ego_position = self.env.vehicle.position
         ego_heading = self.env.vehicle.heading
@@ -684,7 +684,7 @@ class BEVObservation(ObservationType):
 
         ego_destination = self.env.vehicle.planned_trajectory[-1].copy()
         rel_destination = batch_coordinates_conversion(ego_position, ego_heading, ego_destination.reshape(-1, 2))
-        type_dict = dict(color="red", linewidth=3, zorder=10)
+        type_dict = dict(color="red", linewidth=1, zorder=10)
         rel_destination = np.stack([np.zeros((1, 2)), rel_destination], axis=1).squeeze(axis=0)
         plt.plot(rel_destination[:, 0], rel_destination[:, 1], **type_dict)
 

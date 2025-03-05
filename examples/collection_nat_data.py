@@ -19,7 +19,7 @@ def make_args():
     parser = ArgumentParser()
     parser.add_argument('--dataset-path', type=str, default="", help="Interaction dataset path", required=True)
     parser.add_argument('--trajectory-path', type=str, default="data/trajectory_set")
-    parser.add_argument('--max-cpu-n', type=int, default=2, help="Number of process")
+    parser.add_argument('--max-cpu-n', type=int, default=4, help="Number of process")
     args = parser.parse_args()
     return args
 
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     log.info(f"总共有 {len(dataset_file_info):d} 个路口数据.")
     tag = 'observation'
     # for location_name, v in trajecotry_file_info.items():
-    location_name = 'DR_CHN_Roundabout_LN'
+    location_name = 'DR_DEU_Merging_MT'
     v = trajecotry_file_info[location_name]
     save_path = os.path.join(project_dir, 'data', tag, location_name)
     osm_path = dataset_file_info[location_name]['map_file']

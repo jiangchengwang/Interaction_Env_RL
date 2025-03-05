@@ -21,4 +21,10 @@ def _register_highway_envs():
         entry_point="simulation_environment.osm_envs.interaction_env:InteractionEvalEnv",
     )
 
+    register(
+        id="interaction-rl-v0",
+        entry_point="simulation_environment.osm_envs.interaction_gail_env:InteractionGAILEnv",
+    )
+
+
 _register_highway_envs()

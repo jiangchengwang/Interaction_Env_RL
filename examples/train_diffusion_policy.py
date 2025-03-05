@@ -166,9 +166,9 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--dataset-path', type=str, default='../data/dataset', help="train dataset path")
-    parser.add_argument('--save-path', type=str, default='../data/model', help="dataset path")
+    parser.add_argument('--save-path', type=str, default='../data/model/diffusion_policy', help="dataset path")
     parser.add_argument('--epochs', type=int, default=50, help="train epochs")
-    parser.add_argument('--batch-size', type=int, default=64, help="train batch size")
+    parser.add_argument('--batch-size', type=int, default=128, help="train batch size")
     parser.add_argument('--lr', type=float, default=1e-4, help="train learning rate")
     parser.add_argument('--weight-decay', type=float, default=1e-6, help="train weight decay")
     parser.add_argument('--num-workers', type=int, default=4, help="train num workers")

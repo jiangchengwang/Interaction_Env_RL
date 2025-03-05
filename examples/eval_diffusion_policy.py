@@ -28,13 +28,13 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-path', type=str, default='', help="Interaction dataset path", required=True)
     parser.add_argument('--train-dataset', type=str, default='data/dataset')
     parser.add_argument('--trajectory-path', type=str, default="data/trajectory_set")
-    parser.add_argument('--model-path', type=str, default='data/model', help="Experiment data path")
+    parser.add_argument('--model-path', type=str, default='data/model/diffusion_policy', help="Experiment data path")
     args = parser.parse_args()
 
     dataset_file_info = get_all_foler_path(args.dataset_path)
     trajecotry_file_info = get_all_trajectory_set_data(os.path.join(project_dir, args.trajectory_path))
 
-    location_name = 'DR_CHN_Roundabout_LN'
+    location_name = 'DR_DEU_Merging_MT'
     v = trajecotry_file_info[location_name]
     osm_path = dataset_file_info[location_name]['map_file']
     eval_dataset = BEVDataset(dataset_path=os.path.join(project_dir, args.train_dataset), train=False)

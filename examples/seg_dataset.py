@@ -9,7 +9,8 @@ import numpy as np
 from simulation_environment.utils import lmap
 
 if __name__ == '__main__':
-    dataset_path = f"{projector_dir}/data/observation/DR_CHN_Roundabout_LN"
+    location_name = 'DR_DEU_Merging_MT'
+    dataset_path = f"{projector_dir}/data/observation/{location_name}"
     save_path = f"{projector_dir}/data/dataset"
     if not os.path.exists(save_path):
         os.makedirs(save_path)

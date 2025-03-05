@@ -55,6 +55,6 @@ if __name__ == '__main__':
             env.render()
             done = terminated or truncated
             # bgr_img = cv2.cvtColor(obs, cv2.COLOR_RGB2BGR)
-            # cv2.imshow('Test', bgr_img)
-            # cv2.waitKey(0)
+            cv2.imshow('Test', obs)
+            cv2.waitKey(1)
         env.close()
