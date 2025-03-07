@@ -11,7 +11,7 @@ import pickle
 
 
 class Discriminator(object):
-    def __init__(self, model, device=None):
+    def __init__(self, model, device=None, discrim_steps=1,):
         super(Discriminator, self).__init__()
         self.device = device
         self.discri = model.to(device)
@@ -20,22 +20,48 @@ class Discriminator(object):
         self.discrim_criterion.to(device)
         self.optimizer = torch.optim.Adam(self.discri.parameters())
         self.returns = None
+        self.discrim_steps = discrim_steps
 
     def update(self,
                expert_data_loader,
                policy_states,
                policy_actions):
-        for nbatch in expert_data_loader:
-            expert_states = nbatch['image'].to(policy_states.dtype).to(self.device)
-            expert_actions = nbatch['action'].to(policy_states.dtype).to(self.device)
-            g_o = self.discri(policy_states, policy_actions)
-            e_o = self.discri(expert_states, expert_actions)
-            self.optimizer.zero_grad()
-            feak_discrim_loss = self.discrim_criterion(g_o, torch.ones((policy_states.shape[0], 1), device=self.device))
-            real_discrim_loss = self.discrim_criterion(e_o, torch.zeros((expert_states.shape[0], 1), device=self.device))
-            discrim_loss = feak_discrim_loss + real_discrim_loss
-            discrim_loss.backward()
-            self.optimizer.step()
+
+        log = {
+            'feak_discrim_loss': [],
+            'real_discrim_loss': [],
+        }
+
+        for i in range(self.discrim_steps):
+
+            batch_size = expert_data_loader.batch_size
+
+            perm = np.arange(policy_states.shape[0])
+            np.random.shuffle(perm)
+            perm = torch.LongTensor(perm).to(self.device)
+            policy_states = policy_states[perm]
+            policy_actions = policy_actions[perm]
+
+            optim_iter_num = int(np.floor(policy_states.shape[0] / batch_size))
+            for j in range(optim_iter_num):
+                ind = slice(i * batch_size, min((i + 1) * batch_size, policy_states.shape[0]))
+
+                nbatch = next(iter(expert_data_loader))
+                expert_states = nbatch['image'].to(policy_states.dtype).to(self.device)
+                expert_actions = nbatch['action'].to(policy_states.dtype).to(self.device)
+                e_o = self.discri(expert_states, expert_actions)
+
+                g_o = self.discri(policy_states[ind].to(self.device), policy_actions[ind].to(self.device))
+                self.optimizer.zero_grad()
+                feak_discrim_loss = self.discrim_criterion(g_o, torch.ones((batch_size, 1), device=self.device))
+                real_discrim_loss = self.discrim_criterion(e_o, torch.zeros((batch_size, 1), device=self.device))
+                discrim_loss = feak_discrim_loss + real_discrim_loss
+                discrim_loss.backward()
+                self.optimizer.step()
+                log['feak_discrim_loss'].append(feak_discrim_loss.item())
+                log['real_discrim_loss'].append(real_discrim_loss.item())
+
+        return log
 
     def predict_reward(self, states, actions):
         with torch.no_grad():

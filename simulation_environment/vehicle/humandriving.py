@@ -4,8 +4,9 @@ from typing import Union, Dict, List, Tuple, Set
 from simulation_environment import utils
 from simulation_environment.vehicle.behavior import IDMVehicle
 import numpy as np
+from utils.cubic_spline import Spline2D
 import logger
-logging = logger.get_logger(__name__)
+log = logger.get_logger(__name__)
 
 
 class HumanLikeVehicle(IDMVehicle):
@@ -35,7 +36,6 @@ class HumanLikeVehicle(IDMVehicle):
                  v_length=None,
                  v_width=None,
                  ngsim_traj=None,
-                 IDM=False
                  ):
         super(HumanLikeVehicle, self).__init__(road, name, position, heading, velocity, target_lane_index, target_velocity, route, timer)
 
@@ -46,7 +46,10 @@ class HumanLikeVehicle(IDMVehicle):
         self.planned_trajectory = ngsim_traj[:, :2]
         self.planned_speed = ngsim_traj[:, 2:3]
         self.planned_heading = ngsim_traj[:, 3:4]
-        self.IDM = IDM
+
+        self.total_traj_spline = None
+        self.build_trajs_spline()
+
         self.velocity_history = []
         self.heading_history = []
         self.crash_history = []
@@ -56,16 +59,15 @@ class HumanLikeVehicle(IDMVehicle):
         self.WIDTH = v_width  # Vehicle width [m]
 
     def act(self, action: Union[dict, str, int] = None):
-        if self.IDM:
-            super(HumanLikeVehicle, self).act()
-        else:
-            try:
-                control_heading, acceleration = self.control_vehicle(self.planned_trajectory[self.sim_steps],
-                                                                     self.planned_speed[self.sim_steps],
-                                                                     self.planned_heading[self.sim_steps])
-                self.action = {'steering': control_heading, 'acceleration': acceleration}
-            except Exception as e:
-                raise ValueError(f'Invalid action, error {e}')
+
+        try:
+            control_heading, acceleration = self.control_vehicle(self.planned_trajectory[self.sim_steps],
+                                                                 self.planned_speed[self.sim_steps],
+                                                                 self.planned_heading[self.sim_steps])
+            self.action = {'steering': control_heading, 'acceleration': acceleration}
+        except Exception as e:
+            log.error(f'Error: {e}')
+            raise ValueError(f'Invalid action, error {e}')
 
     def control_vehicle(self, next_position, next_speed, next_heading):
 
@@ -93,4 +95,20 @@ class HumanLikeVehicle(IDMVehicle):
         self.crash_history.append(self.crashed)
         self.action_history.append(self.action)
         self.traj = np.append(self.traj, self.position, axis=0)
+
+    def build_trajs_spline(self):
+        def remove_close_points(traj, threshold=1.0):
+            new_traj = [traj[0]]
+            last_point = traj[0]
+            for i in range(1, len(traj)):
+                if np.linalg.norm(traj[i] - last_point) > threshold:
+                    new_traj.append(traj[i])
+                    last_point = traj[i]
+            return np.array(new_traj)
+        processed_trajs = remove_close_points(self.planned_trajectory)
+        self.total_traj_spline = Spline2D(processed_trajs[:, 0], processed_trajs[:, 1])
+
+    @property
+    def spline(self):
+        return self.total_traj_spline
 

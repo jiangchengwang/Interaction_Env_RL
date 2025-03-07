@@ -37,43 +37,45 @@ class PPO():
     def __init__(self,
                  actor,
                  critic,
-                 clip_param,
-                 ppo_epoch,
-                 num_mini_batch,
-                 value_loss_coef,
-                 entropy_coef,
-                 lr=None,
-                 eps=None,
-                 max_grad_norm=None,
-                 use_clipped_value_loss=True,
+                 lr: float = 1e-3,
+                 optim_epochs=10,
+                 optim_batch_size=64,
+                 discount: float = 0.99,
+                 tau: float = 0.95,
+                 l2_reg: float = 1e-3,
+                 clip_epsilon: float = 0.2,
+                 optima_value_iternum = 1,
+                 actor_max_grad_norm: float = 40.,
                  device=None):
         super(PPO, self).__init__()
 
         self.actor = actor
         self.critic = critic
-
-        self.clip_param = clip_param
-        self.ppo_epoch = ppo_epoch
-        self.num_mini_batch = num_mini_batch
-
-        self.value_loss_coef = value_loss_coef
-        self.entropy_coef = entropy_coef
-
-        self.max_grad_norm = max_grad_norm
-        self.use_clipped_value_loss = use_clipped_value_loss
-
-        self.v_optimizer = optim.Adam(critic.parameters(), lr=lr, eps=eps)
-        self.p_optimizer = optim.Adam(actor.parameters(), lr=lr, eps=eps)
+        self.optim_epochs = optim_epochs
+        self.optim_batch_size = optim_batch_size
+        self.discount = discount
+        self.tau = tau
+        self.l2_reg = l2_reg
+        self.clip_epsilon = clip_epsilon
+        self.optima_value_iternum = optima_value_iternum
+        self.actor_max_grad_norm = actor_max_grad_norm
+        self.v_optimizer = optim.Adam(critic.parameters(), lr=lr)
+        self.p_optimizer = optim.Adam(actor.parameters(), lr=lr)
         self.device = device
 
     def update(self, states, actions, rewards, next_states,  masks):
         with torch.no_grad():
-            # 估计状态价值
             values = self.critic(states)
+            fixed_log_probs = self.actor.get_log_prob(states, actions)
 
         advantages, returns = estimate_advantages(rewards, masks, values, self.discount, self.tau, self.device)
 
         optim_iter_num = int(math.ceil(states.shape[0] / self.optim_batch_size))
+        log = {
+            'actor_loss': [],
+            'critic_loss': [],
+        }
+
         for _ in range(self.optim_epochs):
             perm = np.arange(states.shape[0])
             # 对索引进行打乱
@@ -89,17 +91,17 @@ class PPO():
                 # 从打乱的数据采样小批量数据
                 ind = slice(i * self.optim_batch_size, min((i + 1) * self.optim_batch_size, states.shape[0]))
                 states_b, actions_b, advantages_b, returns_b, fixed_log_probs_b = \
-                    states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind]
+                    states[ind].to(self.device), actions[ind].to(self.device), advantages[ind].to(self.device), returns[ind].to(self.device), fixed_log_probs[ind].to(self.device)
 
-                for _ in range(1):
-                    values_pred = self.critic(states_b)  # 预测的值函数值
-                    value_loss = (values_pred - returns_b).pow(2).mean()  # 计算值函数损失值
-                    # 权重衰减
+                for _ in range(self.optima_value_iternum):
+                    values_pred = self.critic(states_b)
+                    value_loss = (values_pred - returns_b).pow(2).mean()
                     for param in self.critic.parameters():
                         value_loss += param.pow(2).sum() * self.l2_reg
                     self.v_optimizer.zero_grad()
                     value_loss.backward()
                     self.v_optimizer.step()
+                    log['critic_loss'].append(value_loss.item())
 
                 log_probs = self.actor.get_log_prob(states_b, actions_b)
                 ratio = torch.exp(log_probs - fixed_log_probs_b)
@@ -108,6 +110,9 @@ class PPO():
                 policy_surr = -torch.min(surr1, surr2).mean()
                 self.p_optimizer.zero_grad()
                 policy_surr.backward()
-                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 40)
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.actor_max_grad_norm)
                 self.p_optimizer.step()
+                log['actor_loss'].append(policy_surr.item())
+
+        return log
 

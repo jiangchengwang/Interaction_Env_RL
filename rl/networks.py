@@ -189,12 +189,12 @@ class CNNValue(nn.Module):
             self.critic_layers.append(nn.Linear(last_dim, nh))
             last_dim = nh
 
-        self.value = nn.Linear(last_dim, 1)
-        self.value.weight.data.mul_(0.1)
-        self.value.bias.data.mul_(0.0)
+        self.value_head = nn.Linear(last_dim, 1)
+        self.value_head.weight.data.mul_(0.1)
+        self.value_head.bias.data.mul_(0.0)
 
     def forward(self, x):
-        x = self.features(x)
+        x = self.base(x)
         for affine in self.critic_layers:
             x = self.activation(affine(x))
         value = self.value_head(x)  # 输出层输出值

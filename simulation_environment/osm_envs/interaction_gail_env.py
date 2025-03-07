@@ -62,8 +62,13 @@ class InteractionGAILEnv(InteractionEnv):
         #     s=self.vehicle.spline.get_s(self.vehicle.position),
         #     d=0)
         # )
+        s, d = self.vehicle.spline.cartesian_to_frenet1D(self.vehicle.position[0], self.vehicle.position[1])
 
-        return self.steps >= self.duration or self.vehicle.crashed
+        lane_heading = self.vehicle.spline.calc_yaw(s)
+        relative_heading = lane_heading - self.vehicle.heading
+        relative_heading = (relative_heading + np.pi) % (2 * np.pi) - np.pi
+
+        return self.steps >= self.duration or self.vehicle.crashed or d >= 0.1 or abs(relative_heading) >= np.pi / 18
 
     def _is_truncated(self) -> bool:
         """

@@ -5,16 +5,15 @@ import sys
 import time
 from collections import deque
 
+import pandas as pd
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 import simulation_environment
 import gymnasium as gym
-from gymnasium import spaces
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
+import json
 import argparse
 from rl import algo, utils
 from rl.algo import gail
@@ -29,6 +28,12 @@ log = logger.setup_app_level_logger()
 def main():
     args = get_args()
 
+    if not os.path.exists(os.path.join(project_root, args.model_path)):
+        os.makedirs(os.path.join(project_root, args.model_path))
+
+    with open(os.path.join(project_root, args.model_path, 'InputParm.json'), "w") as f:
+        json.dump(vars(args), f, indent=2, sort_keys=True)
+
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
@@ -40,7 +45,7 @@ def main():
     device = torch.device("cuda:0" if args.cuda else "cpu")
     dtype = torch.float32
     dataset_file_info = get_all_foler_path(args.dataset_path)
-    trajecotry_file_info = get_all_trajectory_set_data(os.path.join(project_root, args.trajectory_path))
+    # trajecotry_file_info = get_all_trajectory_set_data(os.path.join(project_root, args.trajectory_path))
     osm_path = dataset_file_info[args.location_name]['map_file']
     envs = gym.make(
             'interaction-rl-v0',
@@ -60,14 +65,11 @@ def main():
         agent = algo.PPO(
             actor,
             critic,
-            args.clip_param,
-            args.ppo_epoch,
-            args.num_mini_batch,
-            args.value_loss_coef,
-            args.entropy_coef,
             lr=args.lr,
-            eps=args.eps,
-            max_grad_norm=args.max_grad_norm)
+            discount=args.gamma,
+            actor_max_grad_norm=args.max_grad_norm,
+            device=device,
+        )
     else:
         log.error("Only PPO is supported")
         raise NotImplementedError
@@ -91,10 +93,13 @@ def main():
     for j in range(args.epochs):
         rollouts = Memory()
         num_steps = 0
+        num_episodes = 0
         while num_steps < args.num_env_steps:
+            num_episodes += 1
             state, _ = envs.reset()
             done = False
             while not done:
+                # envs.render()
                 with torch.no_grad():
                     state = expert_dataset.normalize_obs(state)
                     state = torch.from_numpy(state).to(dtype).to(device).unsqueeze(0)
@@ -118,8 +123,73 @@ def main():
         masks = torch.from_numpy(np.stack(batch.mask)).to(dtype).to(device)
         rewards = discr.predict_reward(states, actions)
 
-        discr.update(expert_data_loader, states, actions)
-        agent.update(states, actions, masks, next_states, rewards)
+        discr_log = discr.update(expert_data_loader, states, actions)
+        agent_log = agent.update(states, actions, rewards, next_states, masks)
+
+        log.info("Epoch: {}, "
+                 "Discr fake loss: {},"
+                 "Discr real loss: {},"
+                 "Actor loss: {}, "
+                 "Critic loss: {}".format(
+            j,
+            np.mean(discr_log['feak_discrim_loss']),
+            np.mean(discr_log['real_discrim_loss']),
+            np.mean(agent_log['actor_loss']),
+            np.mean(agent_log['critic_loss'])
+        ))
+
+        if j % args.save_interval == 0:
+            model_path = os.path.join(project_root, args.model_path, f"epoch_{j}.pth")
+            torch.save(actor.state_dict(), model_path)
+
+        save_exp_data(
+            discr_log,
+            agent_log,
+            rewards.cpu().numpy(),
+            num_episodes,
+            num_steps,
+            os.path.join(project_root, args.model_path),
+            j,
+            train=True,
+        )
+
+
+def save_exp_data(
+    discr_log: dict,
+    agent_log: dict,
+    rewards: np.ndarray,
+    num_episodes: int,
+    num_steps: int,
+    save_path: str,
+    iter: int,
+    train=True,
+):
+    csv_file_name = "train_loss.csv" if train else "eval_loss.csv"
+    csv_file_path = os.path.join(save_path, csv_file_name)
+    exp_data = [{
+        'Discr fake loss': np.mean(discr_log['feak_discrim_loss']),
+        'Discr real loss': np.mean(discr_log['ral_discrim_loss']),
+        'Actor loss': np.mean(agent_log['actor_loss']),
+        'Critic loss': np.mean(agent_log['critic_loss']),
+        'Rewards': np.mean(rewards),
+        'Rewards std': np.std(rewards),
+        'num_steps':num_steps,
+        'num_episodes':num_episodes,
+        'Epoch': iter,
+    }]
+
+    df = pd.DataFrame(exp_data)
+    kwargs = {
+        'index': False,
+        'mode': 'w',
+        'encoding': 'utf-8'
+    }
+
+    if iter > 0:
+        kwargs['mode'] = 'a'
+        kwargs['header'] = False
+
+    df.to_csv(csv_file_path,**kwargs)
 
 
 def get_args():
@@ -141,22 +211,15 @@ def get_args():
     parser.add_argument(
         '--gail-batch-size',
         type=int,
-        default=128,
+        default=64,
         help='gail batch size (default: 128)')
     parser.add_argument(
-        '--gail-epoch', type=int, default=5, help='gail epochs (default: 5)')
-    parser.add_argument(
-        '--lr', type=float, default=7e-4, help='learning rate (default: 7e-4)')
+        '--lr', type=float, default=1e-3, help='learning rate (default: 7e-4)')
     parser.add_argument(
         '--eps',
         type=float,
         default=1e-5,
         help='RMSprop optimizer epsilon (default: 1e-5)')
-    parser.add_argument(
-        '--alpha',
-        type=float,
-        default=0.99,
-        help='RMSprop optimizer apha (default: 0.99)')
     parser.add_argument(
         '--gamma',
         type=float,
@@ -185,7 +248,7 @@ def get_args():
     parser.add_argument(
         '--max-grad-norm',
         type=float,
-        default=0.5,
+        default=40,
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
         '--seed', type=int, default=1, help='random seed (default: 1)')
@@ -212,8 +275,8 @@ def get_args():
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=100,
-        help='save interval, one save per n updates (default: 100)')
+        default=1,
+        help='save interval, one save per n updates (default: 1)')
     parser.add_argument(
         '--eval-interval',
         type=int,
@@ -228,42 +291,14 @@ def get_args():
     #     '--env-name',
     #     default='PongNoFrameskip-v4',
     #     help='environment to train on (default: PongNoFrameskip-v4)')
-    parser.add_argument(
-        '--log-dir',
-        default='/tmp/gym/',
-        help='directory to save agent logs (default: /tmp/gym)')
-    parser.add_argument(
-        '--save-dir',
-        default='./trained_models/',
-        help='directory to save agent logs (default: ./trained_models/)')
-    parser.add_argument(
-        '--no-cuda',
-        action='store_true',
-        default=False,
-        help='disables CUDA training')
-    parser.add_argument(
-        '--use-proper-time-limits',
-        action='store_true',
-        default=False,
-        help='compute returns taking into account time limits')
-    parser.add_argument(
-        '--recurrent-policy',
-        action='store_true',
-        default=False,
-        help='use a recurrent policy')
-    parser.add_argument(
-        '--use-linear-lr-decay',
-        action='store_true',
-        default=False,
-        help='use a linear schedule on the learning rate')
     args = parser.parse_args()
-
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
-
+    args.cuda = torch.cuda.is_available()
     assert args.algo in ['a2c', 'ppo', 'acktr']
-    if args.recurrent_policy:
-        assert args.algo in ['a2c', 'ppo'], \
-            'Recurrent policy is not implemented for ACKTR'
+
+    log.info("Running args:")
+    for arg in vars(args):
+        log.info("{}: {}".format(arg, getattr(args, arg)))
+    log.info("---------------------------------------------------")
 
     return args
 

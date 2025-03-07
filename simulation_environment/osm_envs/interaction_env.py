@@ -48,7 +48,7 @@ class InteractionEnv(AbstractEnv):
 
     def load_data(self):
         file_name = np.random.choice(self.file_names, size=1, replace=False)[0]  # 随机选择一个文件
-        print(f"Load data from {file_name}")
+        log.debug(f"Load data from {file_name}")
         path = os.path.join(self.data_path, str(file_name))
         # 打开包含路径的文件
         f = open(path, 'rb')
