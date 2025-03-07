@@ -87,6 +87,9 @@ def main():
             shuffle=True,
             drop_last=drop_last)
 
+    max_reward = -np.inf
+    min_episode = np.inf
+
     for j in range(args.epochs):
         rollouts = Memory()
         num_steps = 0
@@ -135,14 +138,26 @@ def main():
             np.mean(agent_log['critic_loss'])
         ))
 
-        if j % args.save_interval == 0:
+        rewards = rewards.cpu().numpy()
+
+        if (j+1) % args.save_interval == 0:
             model_path = os.path.join(project_root, args.model_path, f"epoch_{j}.pth")
+            torch.save(actor.state_dict(), model_path)
+
+        if min_episode < num_episodes:
+            min_episode = num_episodes
+            model_path = os.path.join(project_root, args.model_path, f"min_episode_model.pth")
+            torch.save(actor.state_dict(), model_path)
+
+        if max_reward > np.mean(rewards):
+            max_reward = np.mean(rewards)
+            model_path = os.path.join(project_root, args.model_path, f"max_reward_model.pth")
             torch.save(actor.state_dict(), model_path)
 
         save_exp_data(
             discr_log,
             agent_log,
-            rewards.cpu().numpy(),
+            rewards,
             num_episodes,
             num_steps,
             os.path.join(project_root, args.model_path),
@@ -204,7 +219,7 @@ def get_args():
     parser.add_argument('--trajectory-path', type=str, default="data/trajectory_set")
     parser.add_argument('--model-path', type=str, default='data/model/gail', help="Experiment data path")
     parser.add_argument(
-        '--epochs', type=int, default=2, help='gail epochs (default: 5)')
+        '--epochs', type=int, default=5000, help='gail epochs (default: 5)')
     parser.add_argument(
         '--gail-batch-size',
         type=int,
@@ -239,7 +254,7 @@ def get_args():
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=1,
+        default=10,
         help='save interval, one save per n updates (default: 1)')
     parser.add_argument(
         '--eval-interval',
