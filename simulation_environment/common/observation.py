@@ -22,13 +22,16 @@ from utils.state2bev import polygon_xy_from_state, draw_vehicle, draw_pedestrian
 
 matplotlib.use('agg')
 
+import logger
+log = logger.get_logger(__name__)
+
 try:
     import torch
     from torch_geometric.data import Dataset
     from torch_geometric.data import HeteroData
     from torch_geometric.data import extract_tar
 except ImportError:
-    print('torch_geometric is not installed, please install it by running "pip install torch-geometric"')
+    log.error('torch_geometric is not installed, please install it by running "pip install torch-geometric"')
 
 if TYPE_CHECKING:
     from simulation_environment.common.abstract import AbstractEnv

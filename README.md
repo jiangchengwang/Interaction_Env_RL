@@ -6,7 +6,7 @@ The purpose of this project is to use imitation learning, reinforcement learning
 - [x] 数据预处理 
 - [x] 仿真环境搭建 
 - [x] 扩散策略
-- [ ] GAIL
+- [x] GAIL
 - [ ] GNN-GAIL
 
 ## 环境(Environment)

@@ -22,7 +22,7 @@ from rl.networks import CNNPolicy, CNNDiscriminator, CNNValue
 from rl.storage import Memory
 from data_process.parse_dataset_path import get_all_foler_path, get_all_trajectory_set_data
 import logger
-log = logger.setup_app_level_logger()
+log = logger.setup_app_level_logger(level='INFO')
 
 
 def main():
@@ -165,7 +165,7 @@ def save_exp_data(
     csv_file_path = os.path.join(save_path, csv_file_name)
     exp_data = [{
         'Discr fake loss': np.mean(discr_log['feak_discrim_loss']),
-        'Discr real loss': np.mean(discr_log['ral_discrim_loss']),
+        'Discr real loss': np.mean(discr_log['real_discrim_loss']),
         'Actor loss': np.mean(agent_log['actor_loss']),
         'Critic loss': np.mean(agent_log['critic_loss']),
         'Rewards': np.mean(rewards),
@@ -249,7 +249,7 @@ def get_args():
     parser.add_argument(
         '--num-env-steps',
         type=int,
-        default=2048,
+        default=1024,
         help='number of environment steps to train (default: 2048)')
     parser.add_argument(
         '--env-name',

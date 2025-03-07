@@ -97,15 +97,19 @@ class HumanLikeVehicle(IDMVehicle):
         self.traj = np.append(self.traj, self.position, axis=0)
 
     def build_trajs_spline(self):
-        def remove_close_points(traj, threshold=1.0):
+        def remove_close_points(traj, heading, threshold=1.0):
             new_traj = [traj[0]]
             last_point = traj[0]
             for i in range(1, len(traj)):
                 if np.linalg.norm(traj[i] - last_point) > threshold:
                     new_traj.append(traj[i])
                     last_point = traj[i]
+            if len(new_traj) < 2:
+                x_new = traj[0][0] + np.cos(heading)
+                y_new = traj[0][1] + np.sin(heading)
+                new_traj.append(np.array([x_new, y_new]))
             return np.array(new_traj)
-        processed_trajs = remove_close_points(self.planned_trajectory)
+        processed_trajs = remove_close_points(self.planned_trajectory, self.heading)
         self.total_traj_spline = Spline2D(processed_trajs[:, 0], processed_trajs[:, 1])
 
     @property
