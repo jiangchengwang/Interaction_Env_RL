@@ -48,7 +48,7 @@ def main():
     # trajecotry_file_info = get_all_trajectory_set_data(os.path.join(project_root, args.trajectory_path))
     osm_path = dataset_file_info[args.location_name]['map_file']
     envs = gym.make(
-            'interaction-rl-v0',
+            args.env_name,
             render_mode="rgb_array",
             data_path=os.path.join(project_root, args.trajectory_path, args.location_name),
             osm_path=osm_path,
@@ -78,9 +78,6 @@ def main():
         discr_model = CNNDiscriminator(in_channels, action_dim)
         discr_model.to(dtype).to(device)
         discr = gail.Discriminator(discr_model, device)
-        # file_name = os.path.join(
-        #     args.gail_experts_dir, "trajs_{}.pt".format(
-        #         args.env_name.split('-')[0].lower()))
 
         expert_dataset = gail.ExpertBEVDataset(os.path.join(project_root, args.gail_experts_dir))
         drop_last = len(expert_dataset) > args.gail_batch_size
@@ -207,7 +204,7 @@ def get_args():
     parser.add_argument('--trajectory-path', type=str, default="data/trajectory_set")
     parser.add_argument('--model-path', type=str, default='data/model/gail', help="Experiment data path")
     parser.add_argument(
-        '--epochs', type=int, default=5, help='gail epochs (default: 5)')
+        '--epochs', type=int, default=2, help='gail epochs (default: 5)')
     parser.add_argument(
         '--gail-batch-size',
         type=int,
@@ -230,21 +227,7 @@ def get_args():
         action='store_true',
         default=False,
         help='use generalized advantage estimation')
-    parser.add_argument(
-        '--gae-lambda',
-        type=float,
-        default=0.95,
-        help='gae lambda parameter (default: 0.95)')
-    parser.add_argument(
-        '--entropy-coef',
-        type=float,
-        default=0.01,
-        help='entropy term coefficient (default: 0.01)')
-    parser.add_argument(
-        '--value-loss-coef',
-        type=float,
-        default=0.5,
-        help='value loss coefficient (default: 0.5)')
+
     parser.add_argument(
         '--max-grad-norm',
         type=float,
@@ -252,26 +235,7 @@ def get_args():
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
         '--seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument(
-        '--ppo-epoch',
-        type=int,
-        default=4,
-        help='number of ppo epochs (default: 4)')
-    parser.add_argument(
-        '--num-mini-batch',
-        type=int,
-        default=32,
-        help='number of batches for ppo (default: 32)')
-    parser.add_argument(
-        '--clip-param',
-        type=float,
-        default=0.2,
-        help='ppo clip parameter (default: 0.2)')
-    parser.add_argument(
-        '--log-interval',
-        type=int,
-        default=10,
-        help='log interval, one log per n updates (default: 10)')
+
     parser.add_argument(
         '--save-interval',
         type=int,
@@ -285,12 +249,12 @@ def get_args():
     parser.add_argument(
         '--num-env-steps',
         type=int,
-        default=128,
+        default=2048,
         help='number of environment steps to train (default: 2048)')
-    # parser.add_argument(
-    #     '--env-name',
-    #     default='PongNoFrameskip-v4',
-    #     help='environment to train on (default: PongNoFrameskip-v4)')
+    parser.add_argument(
+        '--env-name',
+        default='interaction-rl-v0',
+        help='environment to train on (default: interaction-rl-v0)')
     args = parser.parse_args()
     args.cuda = torch.cuda.is_available()
     assert args.algo in ['a2c', 'ppo', 'acktr']
