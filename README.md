@@ -74,4 +74,5 @@ python env_test.py --dataset-path your/dataset/path　--save-video
 > - [Interaction-dataset](https://github.com/interaction-dataset/interaction-dataset)
 > - [Diffusion Policy](https://github.com/real-stanford/diffusion_policy)
 > - [GAIL](https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail)
+> - [GAIL](https://github.com/Khrylx/PyTorch-RL)
 
