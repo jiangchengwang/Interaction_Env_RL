@@ -144,12 +144,12 @@ def main():
             model_path = os.path.join(project_root, args.model_path, f"epoch_{j}.pth")
             torch.save(actor.state_dict(), model_path)
 
-        if min_episode < num_episodes:
+        if min_episode > num_episodes:
             min_episode = num_episodes
             model_path = os.path.join(project_root, args.model_path, f"min_episode_model.pth")
             torch.save(actor.state_dict(), model_path)
 
-        if max_reward > np.mean(rewards):
+        if max_reward < np.mean(rewards):
             max_reward = np.mean(rewards)
             model_path = os.path.join(project_root, args.model_path, f"max_reward_model.pth")
             torch.save(actor.state_dict(), model_path)
@@ -226,7 +226,7 @@ def get_args():
         default=64,
         help='gail batch size (default: 128)')
     parser.add_argument(
-        '--lr', type=float, default=1e-3, help='learning rate (default: 7e-4)')
+        '--lr', type=float, default=7e-4, help='learning rate (default: 7e-4)')
     parser.add_argument(
         '--eps',
         type=float,
@@ -246,7 +246,7 @@ def get_args():
     parser.add_argument(
         '--max-grad-norm',
         type=float,
-        default=40,
+        default=0.5,
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
         '--seed', type=int, default=1, help='random seed (default: 1)')

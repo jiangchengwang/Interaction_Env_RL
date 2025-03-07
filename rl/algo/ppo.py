@@ -45,7 +45,7 @@ class PPO():
                  l2_reg: float = 1e-3,
                  clip_epsilon: float = 0.2,
                  optima_value_iternum = 1,
-                 actor_max_grad_norm: float = 40.,
+                 actor_max_grad_norm: float = 0.5,
                  device=None):
         super(PPO, self).__init__()
 
